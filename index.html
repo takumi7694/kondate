@@ -202,8 +202,11 @@
     <div class="sec-title"><span class="fr">Mensuels</span><span class="ja">月1回まで</span></div>
     <div id="listMonthly"></div>
 
-    <button class="restore-btn" id="restoreBtn" onclick="restoreHidden()" style="display:none">削除した内蔵レシピをすべて復元する</button>
-    <p class="note">ここで追加・削除した内容は<b>この端末にのみ</b>保存されます。<br>家族全員の端末に反映したいレシピは、アプリ本体への組み込みが必要です。</p>
+    <div id="trashSec" style="display:none">
+      <div class="sec-title"><span class="fr">Corbeille</span><span class="ja">削除済み（復元できます）</span></div>
+      <div id="listTrash"></div>
+    </div>
+    <p class="note">削除したレシピは「削除済み」に残り、いつでも復元できます。</p>
   </section>
 </main>
 
@@ -281,6 +284,7 @@ function today(){ const d = new Date(); d.setHours(0,0,0,0); return d; }
 /* ================= レシピデータ層（内蔵＋この端末で追加した分） ================= */
 let custom = store.get("customRecipes", []);   // ユーザー追加分
 let hidden = store.get("hiddenBuiltins", []);  // 削除（非表示）にした内蔵レシピ名
+let trash = store.get("trashRecipes", []);     // 削除した追加レシピ（復元用ゴミ箱）
 
 function allRecipes(){
   return BUILTIN.filter(r => !hidden.includes(r.name)).concat(custom);
@@ -328,18 +332,36 @@ function addRecipe(){
 }
 
 function deleteRecipe(name, isBuiltin){
-  if(!confirm("「" + name + "」を削除しますか？")) return;
+  if(!confirm("「" + name + "」を削除しますか？\n（「削除済み」からいつでも復元できます）")) return;
   if(isBuiltin){
     hidden.push(name);
   }else{
+    const r = custom.find(r => r.name === name);
+    if(r) trash.push(r);
     custom = custom.filter(r => r.name !== name);
   }
   persist();
   renderRecipes();
 }
 
-function restoreHidden(){
-  hidden = [];
+function restoreRecipe(name){
+  if(hidden.includes(name)){
+    hidden = hidden.filter(n => n !== name);
+  }else{
+    const r = trash.find(r => r.name === name);
+    if(r){
+      if(allRecipes().some(x => x.name === name)){ alert("同名のレシピが既に存在するため復元できません"); return; }
+      custom.push(r);
+    }
+    trash = trash.filter(r => r.name !== name);
+  }
+  persist();
+  renderRecipes();
+}
+
+function purgeRecipe(name){
+  if(!confirm("「" + name + "」を完全に削除しますか？（元に戻せません）")) return;
+  trash = trash.filter(r => r.name !== name);
   persist();
   renderRecipes();
 }
@@ -356,8 +378,8 @@ const syncEnabled = !!(FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.databaseURL);
 
 function persist(){
   store.set("plans", plans); store.set("genStart", genStart); store.set("checks", checks);
-  store.set("customRecipes", custom); store.set("hiddenBuiltins", hidden);
-  if(db) db.set({plans, genStart, checks, custom, hidden, ts: Date.now()});
+  store.set("customRecipes", custom); store.set("hiddenBuiltins", hidden); store.set("trashRecipes", trash);
+  if(db) db.set({plans, genStart, checks, custom, hidden, trash, ts: Date.now()});
 }
 
 function updateSyncBadge(state){ // "on" | "off" | "none"
@@ -380,9 +402,9 @@ function initSync(){
         return;
       }
       plans = v.plans || {}; genStart = v.genStart || null;
-      checks = v.checks || {}; custom = v.custom || []; hidden = v.hidden || [];
+      checks = v.checks || {}; custom = v.custom || []; hidden = v.hidden || []; trash = v.trash || [];
       store.set("plans", plans); store.set("genStart", genStart); store.set("checks", checks);
-      store.set("customRecipes", custom); store.set("hiddenBuiltins", hidden);
+      store.set("customRecipes", custom); store.set("hiddenBuiltins", hidden); store.set("trashRecipes", trash);
       if(!genStart){ regenerate(); return; }
       renderAll();
     }, () => updateSyncBadge("off"));
@@ -583,6 +605,17 @@ function recipeRowHTML(r, isBuiltin){
     + '<button class="del-btn" onclick="deleteRecipe(\'' + esc(r.name).replace(/'/g, "\\'") + '\',' + isBuiltin + ')">削除</button></div>';
 }
 
+function trashRowHTML(r, isBuiltin){
+  const q = esc(r.name).replace(/'/g, "\\'");
+  return '<div class="recipe-row"><div class="body">'
+    + '<div class="name" style="color:var(--sub)">' + esc(r.name) + (isBuiltin ? '<span class="tag blue">内蔵</span>' : '') + '</div>'
+    + '<div class="meta">' + esc((r.ing || []).map(i => i.n).join("・")) + '</div>'
+    + '</div>'
+    + '<button class="swap-btn" onclick="restoreRecipe(\'' + q + '\')">復元</button>'
+    + (isBuiltin ? '' : '<button class="del-btn" onclick="purgeRecipe(\'' + q + '\')">完全削除</button>')
+    + '</div>';
+}
+
 function renderRecipes(){
   const recipes = allRecipes();
   const builtinNames = new Set(BUILTIN.map(r => r.name));
@@ -592,7 +625,10 @@ function renderRecipes(){
     weekly.map(r => recipeRowHTML(r, builtinNames.has(r.name))).join("") || '<p class="note">定番レシピがありません</p>';
   document.getElementById("listMonthly").innerHTML =
     monthly.map(r => recipeRowHTML(r, builtinNames.has(r.name))).join("") || '<p class="note">月1レシピがありません</p>';
-  document.getElementById("restoreBtn").style.display = hidden.length ? "block" : "none";
+  const hiddenRecipes = BUILTIN.filter(r => hidden.includes(r.name));
+  const trashed = hiddenRecipes.map(r => trashRowHTML(r, true)).concat(trash.map(r => trashRowHTML(r, false)));
+  document.getElementById("trashSec").style.display = trashed.length ? "block" : "none";
+  document.getElementById("listTrash").innerHTML = trashed.join("");
 }
 
 function showTab(name){
