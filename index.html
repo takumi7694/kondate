@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14507c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Menu de la Semaine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,500&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --azure:#14507c;        /* 地中海の深い青 */
+    --azure-mid:#2a7ab0;
+    --azure-light:#eaf3f9;
+    --coral:#e8654f;        /* コーラル */
+    --sand:#f7f2e9;         /* 砂浜のクリーム */
+    --card:#ffffff;
+    --ink:#22303c;
+    --sub:#8d99a4;
+    --line:#e8e2d6;
+    --radius:16px;
+    --serif:"Playfair Display","Noto Serif JP",serif;
+    --sans:"Noto Sans JP",-apple-system,BlinkMacSystemFont,sans-serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  body{margin:0; font-family:var(--sans); background:var(--sand); color:var(--ink); padding-bottom:84px;}
+
+  /* ===== ヘッダー ===== */
+  header{
+    background:linear-gradient(160deg, #0e3a5c 0%, var(--azure) 55%, var(--azure-mid) 100%);
+    color:#fff; padding:calc(env(safe-area-inset-top) + 22px) 22px 20px;
+    position:relative;
+  }
+  header .fr{font-family:var(--serif); font-style:italic; font-size:13px; letter-spacing:.14em; opacity:.75; text-transform:uppercase;}
+  header h1{margin:2px 0 0; font-family:var(--serif); font-size:26px; font-weight:700; letter-spacing:.04em;}
+  header .sub{font-size:12px; opacity:.85; margin-top:6px; letter-spacing:.06em;}
+  /* ニースのビーチパラソル風ストライプ */
+  .stripes{height:6px; background:repeating-linear-gradient(90deg,
+    var(--coral) 0 24px, #fff 24px 48px, var(--azure-mid) 48px 72px, #fff 72px 96px);}
+
+  main{padding:16px 14px; max-width:560px; margin:0 auto;}
+
+  /* ===== セクション見出し ===== */
+  .sec-title{display:flex; align-items:baseline; gap:8px; margin:20px 4px 10px;}
+  .sec-title .fr{font-family:var(--serif); font-style:italic; font-size:15px; color:var(--azure); letter-spacing:.08em;}
+  .sec-title .ja{font-size:11px; color:var(--sub); letter-spacing:.1em;}
+  .sec-title::after{content:""; flex:1; height:1px; background:var(--line); align-self:center;}
+
+  /* ===== カレンダー ===== */
+  .cal-card{background:var(--card); border-radius:var(--radius); padding:14px 12px 12px;
+    box-shadow:0 2px 10px rgba(20,80,124,.08); border:1px solid var(--line);}
+  .cal-nav{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; padding:0 4px;}
+  .cal-nav button{border:none; background:var(--azure-light); color:var(--azure); border-radius:9px;
+    width:34px; height:30px; font-size:15px; cursor:pointer; font-family:var(--serif);}
+  .cal-nav .month{font-family:var(--serif); font-size:17px; font-weight:700; color:var(--azure); letter-spacing:.05em;}
+  table.cal{width:100%; border-collapse:collapse;}
+  table.cal th{font-size:10px; padding:6px 0 5px; color:var(--sub); font-weight:500; letter-spacing:.1em;}
+  table.cal th.sun{color:var(--coral);} table.cal th.sat{color:var(--azure-mid);}
+  table.cal td{width:14.28%; text-align:center; padding:2px 0; height:40px; vertical-align:top;}
+  .cal .d{display:inline-flex; align-items:center; justify-content:center;
+    width:26px; height:26px; border-radius:99px; font-size:12px; color:var(--ink);}
+  td.inwin .d{background:var(--azure-light); color:var(--azure); font-weight:700;}
+  td.today .d{background:var(--coral); color:#fff; font-weight:700;}
+  .cal .dot{display:block; font-size:8.5px; line-height:1.25; color:var(--azure-mid); font-weight:600;
+    max-width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; padding:0 1px;}
+
+  /* ===== 献立カード ===== */
+  .day-card{background:var(--card); border-radius:var(--radius); padding:13px 14px; margin-bottom:10px;
+    display:flex; align-items:center; gap:13px; box-shadow:0 2px 10px rgba(20,80,124,.07);
+    border:1px solid var(--line); position:relative; overflow:hidden;}
+  .day-card::before{content:""; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--azure-mid);}
+  .day-card.fixed::before{background:var(--coral);}
+  .day-label{width:48px; text-align:center; flex-shrink:0;}
+  .day-label .dow{font-family:var(--serif); font-size:17px; font-weight:700; color:var(--azure);}
+  .day-label.sat .dow{color:var(--azure-mid);} .day-label.sun .dow{color:var(--coral);}
+  .day-label .date{font-size:10.5px; color:var(--sub); letter-spacing:.05em;}
+  .dish{flex:1; min-width:0;}
+  .dish .name{font-size:15px; font-weight:700; letter-spacing:.02em;}
+  .dish .meta{font-size:11px; color:var(--sub); margin-top:3px; line-height:1.5;}
+  .dish a{font-size:11px; color:var(--azure-mid); text-decoration:none; display:inline-block; margin-top:4px;
+    border-bottom:1px solid var(--azure-light); padding-bottom:1px;}
+  .tag{display:inline-block; font-size:9px; padding:2px 8px; border-radius:99px;
+    background:#fdeae5; color:var(--coral); margin-left:6px; vertical-align:2px; letter-spacing:.06em; font-weight:600;}
+  .swap-btn{border:1px solid var(--azure-light); background:#fff; color:var(--azure); border-radius:10px;
+    padding:8px 11px; font-size:11.5px; font-weight:600; flex-shrink:0; cursor:pointer; letter-spacing:.04em;}
+  .swap-btn:active{background:var(--azure-light);}
+  .swap-btn:disabled{visibility:hidden;}
+
+  .regen{width:100%; border:none; background:var(--azure); color:#fff; font-size:14px; font-weight:700;
+    padding:15px; border-radius:var(--radius); margin:14px 0 4px; cursor:pointer;
+    box-shadow:0 4px 14px rgba(20,80,124,.25); letter-spacing:.08em; font-family:var(--sans);}
+  .regen .fr{font-family:var(--serif); font-style:italic; font-weight:500; font-size:12px; display:block; opacity:.75; letter-spacing:.12em; margin-bottom:2px;}
+  .regen:active{opacity:.85;}
+  .note{font-size:10.5px; color:var(--sub); text-align:center; margin:10px 0 0; line-height:1.8; letter-spacing:.03em;}
+
+  /* ===== 買い物リスト ===== */
+  .cat-block{background:var(--card); border-radius:var(--radius); padding:4px 16px 10px; margin-bottom:12px;
+    box-shadow:0 2px 10px rgba(20,80,124,.07); border:1px solid var(--line);}
+  .cat-title{font-family:var(--serif); font-size:15px; font-weight:700; color:var(--azure);
+    padding:12px 0 7px; border-bottom:2px solid var(--azure-light); letter-spacing:.06em;}
+  .cat-title .ja{font-family:var(--sans); font-size:10px; color:var(--sub); font-weight:500; margin-left:7px; letter-spacing:.1em;}
+  .item{display:flex; align-items:flex-start; gap:11px; padding:11px 0; border-bottom:1px solid #f2eee5;}
+  .item:last-child{border-bottom:none;}
+  .item input[type=checkbox]{width:20px; height:20px; margin-top:1px; accent-color:var(--coral); flex-shrink:0;}
+  .item .iname{font-size:14px; font-weight:600;}
+  .item.checked .iname{text-decoration:line-through; color:var(--sub);}
+  .item .for{font-size:10.5px; color:var(--sub); margin-top:2px;}
+
+  /* ===== ナビ ===== */
+  nav{position:fixed; bottom:0; left:0; right:0; background:rgba(255,255,255,.96);
+    backdrop-filter:blur(10px); border-top:1px solid var(--line);
+    display:flex; padding-bottom:env(safe-area-inset-bottom); z-index:10;}
+  nav button{flex:1; border:none; background:none; padding:10px 0 8px; font-size:10.5px; color:var(--sub);
+    cursor:pointer; letter-spacing:.08em;}
+  nav button .ic{display:block; font-size:20px; margin-bottom:2px;}
+  nav button.active{color:var(--azure); font-weight:700;}
+  .tab{display:none;} .tab.active{display:block;}
+</style>
+</head>
+<body>
+<header>
+  <div class="fr">La Cuisine de la Semaine</div>
+  <h1 id="headerTitle">今週のこんだて</h1>
+  <div class="sub" id="headerSub"></div>
+</header>
+<div class="stripes"></div>
+
+<main>
+  <section id="tab-menu" class="tab active">
+    <div class="cal-card">
+      <div class="cal-nav">
+        <button onclick="moveMonth(-1)">‹</button>
+        <div class="month" id="calMonth"></div>
+        <button onclick="moveMonth(1)">›</button>
+      </div>
+      <div id="calBody"></div>
+    </div>
+
+    <div class="sec-title"><span class="fr">Menu</span><span class="ja">7日分の献立</span></div>
+    <div id="menuList"></div>
+
+    <button class="regen" onclick="regenerate()"><span class="fr">Régénérer</span>今日から7日分をつくり直す</button>
+    <p class="note">水＝海鮮丼／金・日＝麻婆豆腐・豚キムチ・チキンステーキから選択<br>その他の日は「月1メニュー」から重複なしで選びます</p>
+  </section>
+
+  <section id="tab-shopping" class="tab">
+    <div id="shoppingList"></div>
+    <p class="note">チェックはこの端末に保存されます。献立を作り直すとリセットされます。</p>
+  </section>
+</main>
+
+<nav>
+  <button id="nav-menu" class="active" onclick="showTab('menu')"><span class="ic">🍽</span>献立</button>
+  <button id="nav-shopping" onclick="showTab('shopping')"><span class="ic">🛒</span>買い物</button>
+</nav>
+
+<script>
+"use strict";
+
+/* ================= レシピ定義（ここを編集すればメニューを変更できます） =================
+   cat: 肉 / 野菜 / 魚介 / その他  …買い物リストの分類（肉→野菜→魚介→その他の順に表示） */
+const RECIPES = [
+  // --- 毎週あってOK ---
+  {name:"麻婆豆腐", freq:"weekly",
+    ing:[{n:"豚ひき肉",cat:"肉"},{n:"豆腐",cat:"その他"}]},
+  {name:"豚キムチ", freq:"weekly",
+    ing:[{n:"豚もも",cat:"肉"},{n:"ニラ",cat:"野菜"},{n:"きのこ",cat:"野菜"},{n:"キムチ",cat:"その他"}]},
+  {name:"海鮮丼", freq:"weekly", note:"サーモン丼でも可",
+    ing:[{n:"刺身（魚屋で購入）またはサーモン",cat:"魚介"}]},
+  {name:"チキンステーキ", freq:"weekly",
+    ing:[{n:"とりもも",cat:"肉"},{n:"トマト または レタス",cat:"野菜"}]},
+  // --- 月に1回まで ---
+  {name:"カレー", freq:"monthly",
+    ing:[{n:"牛肉",cat:"肉"},{n:"じゃがいも",cat:"野菜"},{n:"にんじん",cat:"野菜"},{n:"玉ねぎ",cat:"野菜"}]},
+  {name:"豚小松菜炒め", freq:"monthly",
+    ing:[{n:"豚もも",cat:"肉"},{n:"小松菜",cat:"野菜"},{n:"卵",cat:"その他"}]},
+  {name:"鶏ひき肉と小松菜のピリ辛めんつゆ炒め", freq:"monthly",
+    url:"https://www.kurashiru.com/recipes/b850062f-30b8-4136-b22c-14fde09656be",
+    ing:[{n:"鶏ひき肉",cat:"肉"},{n:"小松菜",cat:"野菜"}]},
+  {name:"牛肉とピーマンのオイスターソース炒め", freq:"monthly",
+    url:"https://www.kurashiru.com/recipes/bc3a6120-e132-476f-84ab-2b3aff562e90",
+    ing:[{n:"牛肉",cat:"肉"},{n:"ピーマン",cat:"野菜"},{n:"玉ねぎ",cat:"野菜"}]},
+  {name:"油淋鶏", freq:"monthly",
+    url:"https://www.kurashiru.com/recipes/56c6e22b-d953-4e81-afae-717adc044188",
+    ing:[{n:"鶏むね肉",cat:"肉"},{n:"ネギ",cat:"野菜"}]},
+  {name:"白菜とひき肉の中華風煮込み", freq:"monthly",
+    url:"https://www.kurashiru.com/recipes/84874e68-f291-4b30-bde1-9d6987aa67bb",
+    ing:[{n:"白菜",cat:"野菜"},{n:"豚ひき肉",cat:"肉"}]}
+];
+
+/* 曜日固定ルール: 水=海鮮丼、金・日=ローテ3品から */
+const FIXED_WED = "海鮮丼";
+const ROTATION = ["麻婆豆腐","豚キムチ","チキンステーキ"];
+const CAT_LABELS = {"肉":"Viandes","野菜":"Légumes","魚介":"Poissons","その他":"Autres"};
+const CAT_ORDER = ["肉","野菜","魚介","その他"];
+const DOW = ["日","月","火","水","木","金","土"];
+const byName = Object.fromEntries(RECIPES.map(r => [r.name, r]));
+
+/* ================= ユーティリティ ================= */
+const store = {
+  get(k, def){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; }catch(e){ return def; } },
+  set(k, v){ localStorage.setItem(k, JSON.stringify(v)); }
+};
+function shuffle(a){ a = a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function fmt(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function parseD(s){ return new Date(s + "T00:00:00"); }
+function esc(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function today(){ const d = new Date(); d.setHours(0,0,0,0); return d; }
+
+/* plans: {"2026-07-05":"麻婆豆腐", ...} 過去の履歴も保持（月1判定・カレンダー表示に使用） */
+let plans = store.get("plans", {});
+let genStart = store.get("genStart", null);
+let checks = store.get("checks", {});
+let calCursor = new Date(today().getFullYear(), today().getMonth(), 1);
+
+/* ================= 献立生成 ================= */
+function windowDates(startStr){
+  const out = [];
+  const s = parseD(startStr);
+  for(let i=0;i<7;i++){ const d = new Date(s); d.setDate(d.getDate()+i); out.push(fmt(d)); }
+  return out;
+}
+
+function monthlyUsed(ym, excludeDates){
+  const used = new Set();
+  for(const [date, name] of Object.entries(plans)){
+    if(date.slice(0,7) !== ym) continue;
+    if(excludeDates.has(date)) continue;
+    const r = byName[name];
+    if(r && r.freq === "monthly") used.add(name);
+  }
+  return used;
+}
+
+function generate(startStr){
+  const dates = windowDates(startStr);
+  const exclude = new Set(dates);
+  const result = {};
+  const usedThisWeek = new Set();
+
+  // 1) 固定曜日を先に配置
+  const rotPicks = shuffle(ROTATION);
+  let rotIdx = 0;
+  for(const date of dates){
+    const dow = parseD(date).getDay();
+    if(dow === 3){ result[date] = FIXED_WED; usedThisWeek.add(FIXED_WED); }
+    else if(dow === 5 || dow === 0){
+      const pick = rotPicks[rotIdx % rotPicks.length]; rotIdx++;
+      result[date] = pick; usedThisWeek.add(pick);
+    }
+  }
+
+  // 2) 残りの日を「月1メニュー」から（その月で未使用のもの）
+  for(const date of dates){
+    if(result[date]) continue;
+    const ym = date.slice(0,7);
+    const used = monthlyUsed(ym, exclude);
+    let pool = RECIPES.filter(r => r.freq === "monthly" && !used.has(r.name) && !usedThisWeek.has(r.name));
+    if(!pool.length){
+      pool = RECIPES.filter(r => ROTATION.includes(r.name) && !usedThisWeek.has(r.name));
+    }
+    if(!pool.length){
+      pool = RECIPES.filter(r => r.freq === "monthly" && !usedThisWeek.has(r.name));
+    }
+    if(!pool.length) pool = RECIPES.filter(r => r.freq === "monthly");
+    const pick = shuffle(pool)[0];
+    result[date] = pick.name;
+    usedThisWeek.add(pick.name);
+  }
+  return result;
+}
+
+function regenerate(){
+  const startStr = fmt(today());
+  const result = generate(startStr);
+  Object.assign(plans, result);
+  genStart = startStr;
+  checks = {};
+  store.set("plans", plans); store.set("genStart", genStart); store.set("checks", checks);
+  calCursor = new Date(today().getFullYear(), today().getMonth(), 1);
+  renderAll();
+}
+
+function swapDay(date){
+  const dow = parseD(date).getDay();
+  const dates = windowDates(genStart);
+  const usedThisWeek = new Set(dates.filter(d => d !== date).map(d => plans[d]).filter(Boolean));
+  let pool;
+  if(dow === 5 || dow === 0){
+    pool = ROTATION.filter(n => n !== plans[date] && !usedThisWeek.has(n));
+    if(!pool.length) pool = ROTATION.filter(n => n !== plans[date]);
+  }else{
+    const ym = date.slice(0,7);
+    const used = monthlyUsed(ym, new Set(dates));
+    pool = RECIPES.filter(r => r.freq === "monthly" && r.name !== plans[date] && !used.has(r.name) && !usedThisWeek.has(r.name)).map(r => r.name);
+    if(!pool.length) pool = RECIPES.filter(r => r.freq === "monthly" && r.name !== plans[date] && !usedThisWeek.has(r.name)).map(r => r.name);
+    if(!pool.length){ alert("入れ替え候補がありません"); return; }
+  }
+  plans[date] = shuffle(pool)[0];
+  store.set("plans", plans);
+  renderAll();
+}
+
+/* ================= 描画 ================= */
+function renderMenu(){
+  const el = document.getElementById("menuList");
+  if(!genStart){ el.innerHTML = ""; return; }
+  const dates = windowDates(genStart);
+  el.innerHTML = dates.map(date => {
+    const d = parseD(date);
+    const dow = d.getDay();
+    const cls = dow === 0 ? "sun" : dow === 6 ? "sat" : "";
+    const name = plans[date];
+    const r = byName[name] || {ing:[]};
+    const isFixed = dow === 3 || dow === 5 || dow === 0;
+    const fixedTag = dow === 3 ? '<span class="tag">水曜固定</span>' : (dow === 5 || dow === 0) ? '<span class="tag">定番</span>' : "";
+    return '<div class="day-card' + (isFixed ? ' fixed' : '') + '">'
+      + '<div class="day-label ' + cls + '"><div class="dow">' + DOW[dow] + '</div><div class="date">' + (d.getMonth()+1) + "/" + d.getDate() + '</div></div>'
+      + '<div class="dish"><div class="name">' + esc(name) + fixedTag + '</div>'
+      + '<div class="meta">' + esc(r.ing.map(i => i.n).join("・")) + (r.note ? '／' + esc(r.note) : '') + '</div>'
+      + (r.url ? '<a href="' + esc(r.url) + '" target="_blank" rel="noopener">📎 レシピを見る</a>' : '')
+      + '</div>'
+      + '<button class="swap-btn" onclick="swapDay(\'' + date + '\')"' + (dow === 3 ? ' disabled' : '') + '>変更</button></div>';
+  }).join("");
+  const s = parseD(dates[0]), e = parseD(dates[6]);
+  document.getElementById("headerSub").textContent =
+    (s.getMonth()+1) + "/" + s.getDate() + "（" + DOW[s.getDay()] + "）〜 " + (e.getMonth()+1) + "/" + e.getDate() + "（" + DOW[e.getDay()] + "）";
+}
+
+function renderCalendar(){
+  const y = calCursor.getFullYear(), m = calCursor.getMonth();
+  const MONTHS_FR = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+  document.getElementById("calMonth").textContent = MONTHS_FR[m] + " " + y;
+  const first = new Date(y, m, 1);
+  const daysIn = new Date(y, m+1, 0).getDate();
+  const todayStr = fmt(today());
+  const win = new Set(genStart ? windowDates(genStart) : []);
+  let html = '<table class="cal"><tr>' + DOW.map((d,i) =>
+    '<th class="' + (i===0?"sun":i===6?"sat":"") + '">' + d + '</th>').join("") + '</tr><tr>';
+  for(let i=0;i<first.getDay();i++) html += '<td></td>';
+  for(let day=1; day<=daysIn; day++){
+    const date = fmt(new Date(y, m, day));
+    const dow = new Date(y, m, day).getDay();
+    if(day > 1 && dow === 0) html += '</tr><tr>';
+    const dish = plans[date];
+    const cls = (date === todayStr ? "today " : "") + (win.has(date) ? "inwin" : "");
+    html += '<td class="' + cls + '"><span class="d">' + day + '</span>'
+      + (dish ? '<span class="dot">' + esc(dish) + '</span>' : '') + '</td>';
+  }
+  const lastDow = new Date(y, m, daysIn).getDay();
+  for(let i=lastDow+1;i<=6;i++) html += '<td></td>';
+  html += '</tr></table>';
+  document.getElementById("calBody").innerHTML = html;
+}
+
+function moveMonth(diff){
+  calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() + diff, 1);
+  renderCalendar();
+}
+
+function renderShopping(){
+  const el = document.getElementById("shoppingList");
+  if(!genStart){ el.innerHTML = ""; return; }
+  const dates = windowDates(genStart);
+  const map = {};
+  for(const date of dates){
+    const r = byName[plans[date]];
+    if(!r) continue;
+    for(const i of r.ing){
+      if(!map[i.n]) map[i.n] = {cat: i.cat, dishes: new Set()};
+      map[i.n].dishes.add(r.name);
+    }
+  }
+  let html = "";
+  for(const cat of CAT_ORDER){
+    const items = Object.entries(map).filter(([, v]) => v.cat === cat);
+    if(!items.length) continue;
+    html += '<div class="cat-block"><div class="cat-title">' + CAT_LABELS[cat] + '<span class="ja">' + cat + '</span></div>'
+      + items.map(([n, v]) => {
+        const checked = checks[n] ? " checked" : "";
+        return '<div class="item' + (checks[n] ? ' checked' : '') + '">'
+          + '<input type="checkbox"' + checked + ' onchange="toggleCheck(\'' + esc(n).replace(/'/g, "\\'") + '\', this.checked)">'
+          + '<div><div class="iname">' + esc(n) + '</div>'
+          + '<div class="for">' + esc([...v.dishes].join("・")) + '</div></div></div>';
+      }).join("") + '</div>';
+  }
+  el.innerHTML = html || '<p class="note">献立を生成すると買い物リストが表示されます</p>';
+}
+
+function toggleCheck(name, on){
+  if(on) checks[name] = true; else delete checks[name];
+  store.set("checks", checks);
+  renderShopping();
+}
+
+function showTab(name){
+  ["menu","shopping"].forEach(t => {
+    document.getElementById("tab-" + t).classList.toggle("active", t === name);
+    document.getElementById("nav-" + t).classList.toggle("active", t === name);
+  });
+  document.getElementById("headerTitle").textContent = name === "menu" ? "今週のこんだて" : "買い物リスト";
+}
+
+function renderAll(){ renderMenu(); renderCalendar(); renderShopping(); }
+
+/* ================= 起動 ================= */
+(function init(){
+  if(!genStart){ regenerate(); }
+  else renderAll();
+})();
+</script>
+</body>
+</html>
