@@ -54,13 +54,14 @@
   table.cal{width:100%; border-collapse:collapse;}
   table.cal th{font-size:10px; padding:6px 0 5px; color:var(--sub); font-weight:500; letter-spacing:.1em;}
   table.cal th.sun{color:var(--coral);} table.cal th.sat{color:var(--azure-mid);}
-  table.cal td{width:14.28%; text-align:center; padding:2px 0; height:40px; vertical-align:top;}
+  table.cal td{width:14.28%; text-align:center; padding:2px 0; height:42px; vertical-align:top; cursor:pointer;}
   .cal .d{display:inline-flex; align-items:center; justify-content:center;
     width:26px; height:26px; border-radius:99px; font-size:12px; color:var(--ink);}
   td.inwin .d{background:var(--azure-light); color:var(--azure); font-weight:700;}
   td.today .d{background:var(--coral); color:#fff; font-weight:700;}
-  .cal .dot{display:block; font-size:8.5px; line-height:1.25; color:var(--azure-mid); font-weight:600;
+  .cal .abs{display:block; font-size:8.5px; line-height:1.3; color:var(--coral); font-weight:700;
     max-width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; padding:0 1px;}
+  .cal-hint{font-size:10px; color:var(--sub); text-align:center; margin:8px 0 0; letter-spacing:.04em;}
 
   /* ===== 献立カード ===== */
   .day-card{background:var(--card); border-radius:var(--radius); padding:13px 14px; margin-bottom:10px;
@@ -84,6 +85,19 @@
     padding:8px 11px; font-size:11.5px; font-weight:600; flex-shrink:0; cursor:pointer; letter-spacing:.04em;}
   .swap-btn:active{background:var(--azure-light);}
   .swap-btn:disabled{visibility:hidden;}
+  .btn-col{display:flex; flex-direction:column; gap:6px; flex-shrink:0;}
+  .off-btn{border:1px solid #ead9c8; background:#fff; color:#a4794f; border-radius:10px;
+    padding:6px 11px; font-size:11px; font-weight:600; cursor:pointer; letter-spacing:.04em;}
+  .off-btn:active{background:#f7efe5;}
+  .day-card.off{opacity:.8; background:#fbf9f4;}
+  .day-card.off::before{background:#c9c2b4;}
+  .day-card.off .name{color:var(--sub); font-weight:600;}
+  .day-card.out{background:#fffaf2;}
+  .day-card.out::before{background:#e9b44c;}
+  .day-card.out .name{color:#a4794f;}
+  .mini-row{display:flex; gap:5px;}
+  .mini-row .off-btn{padding:5px 8px; font-size:10.5px; flex:1;}
+  .out-btn{color:#c07f2d !important; border-color:#f0dfc0 !important;}
 
   .regen{width:100%; border:none; background:var(--azure); color:#fff; font-size:14px; font-weight:700;
     padding:15px; border-radius:var(--radius); margin:14px 0 4px; cursor:pointer;
@@ -164,6 +178,7 @@
         <button onclick="moveMonth(1)">›</button>
       </div>
       <div id="calBody"></div>
+      <p class="cal-hint">日付をタップすると不在メモを登録できます（例：パパ不在）</p>
     </div>
 
     <div class="sec-title"><span class="fr">Menu</span><span class="ja">7日分の献立</span></div>
@@ -265,6 +280,8 @@ const BUILTIN = [
 ];
 
 const FIXED_WED = "海鮮丼";
+const OFF = "__OFF__";     // 不在（献立なし）を表す特別な値
+const OUT = "__EAT_OUT__"; // 外食を表す特別な値
 const BASE_ROTATION = ["麻婆豆腐","豚キムチ","チキンステーキ"];
 const CAT_LABELS = {"肉":"Viandes","野菜":"Légumes","魚介":"Poissons","その他":"Autres"};
 const CAT_ORDER = ["肉","野菜","魚介","その他"];
@@ -370,6 +387,7 @@ function purgeRecipe(name){
 let plans = store.get("plans", {});
 let genStart = store.get("genStart", null);
 let checks = store.get("checks", {});
+let absences = store.get("absences", {}); // {"2026-07-10":"パパ不在"}
 let calCursor = new Date(today().getFullYear(), today().getMonth(), 1);
 
 /* ================= 同期レイヤー ================= */
@@ -379,7 +397,8 @@ const syncEnabled = !!(FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.databaseURL);
 function persist(){
   store.set("plans", plans); store.set("genStart", genStart); store.set("checks", checks);
   store.set("customRecipes", custom); store.set("hiddenBuiltins", hidden); store.set("trashRecipes", trash);
-  if(db) db.set({plans, genStart, checks, custom, hidden, trash, ts: Date.now()});
+  store.set("absences", absences);
+  if(db) db.set({plans, genStart, checks, custom, hidden, trash, absences, ts: Date.now()});
 }
 
 function updateSyncBadge(state){ // "on" | "off" | "none"
@@ -403,8 +422,10 @@ function initSync(){
       }
       plans = v.plans || {}; genStart = v.genStart || null;
       checks = v.checks || {}; custom = v.custom || []; hidden = v.hidden || []; trash = v.trash || [];
+      absences = v.absences || {};
       store.set("plans", plans); store.set("genStart", genStart); store.set("checks", checks);
       store.set("customRecipes", custom); store.set("hiddenBuiltins", hidden); store.set("trashRecipes", trash);
+      store.set("absences", absences);
       if(!genStart){ regenerate(); return; }
       renderAll();
     }, () => updateSyncBadge("off"));
@@ -481,10 +502,10 @@ function regenerate(){
   renderAll();
 }
 
-function swapDay(date){
+function pickDishFor(date){
   const dow = parseD(date).getDay();
   const dates = windowDates(genStart);
-  const usedThisWeek = new Set(dates.filter(d => d !== date).map(d => plans[d]).filter(Boolean));
+  const usedThisWeek = new Set(dates.filter(d => d !== date).map(d => plans[d]).filter(n => n && n !== OFF && n !== OUT));
   const rot = rotation();
   const recipes = allRecipes();
   let pool;
@@ -496,9 +517,43 @@ function swapDay(date){
     const used = monthlyUsed(ym, new Set(dates));
     pool = recipes.filter(r => r.freq === "monthly" && r.name !== plans[date] && !used.has(r.name) && !usedThisWeek.has(r.name)).map(r => r.name);
     if(!pool.length) pool = recipes.filter(r => r.freq === "monthly" && r.name !== plans[date] && !usedThisWeek.has(r.name)).map(r => r.name);
+    if(dow === 3 && recipeByName(FIXED_WED) && plans[date] !== FIXED_WED && !usedThisWeek.has(FIXED_WED)){
+      pool = pool.concat([FIXED_WED]); // 水曜は海鮮丼も候補に含める
+    }
   }
-  if(!pool || !pool.length){ alert("入れ替え候補がありません"); return; }
-  plans[date] = shuffle(pool)[0];
+  return pool && pool.length ? shuffle(pool)[0] : null;
+}
+
+function swapDay(date){
+  const pick = pickDishFor(date);
+  if(!pick){ alert("入れ替え候補がありません"); return; }
+  plans[date] = pick;
+  persist();
+  renderAll();
+}
+
+function setOff(date){
+  plans[date] = OFF;
+  persist();
+  renderAll();
+}
+
+function setOut(date){
+  plans[date] = OUT;
+  persist();
+  renderAll();
+}
+
+function restoreDay(date){
+  const dow = parseD(date).getDay();
+  let pick;
+  if(dow === 3 && recipeByName(FIXED_WED)){
+    pick = FIXED_WED; // 水曜に戻すときはまず海鮮丼
+  }else{
+    pick = pickDishFor(date);
+  }
+  if(!pick){ alert("候補がありません。レシピを追加してください。"); return; }
+  plans[date] = pick;
   persist();
   renderAll();
 }
@@ -513,16 +568,29 @@ function renderMenu(){
     const dow = d.getDay();
     const cls = dow === 0 ? "sun" : dow === 6 ? "sat" : "";
     const name = plans[date];
+    const absTag = absences[date] ? '<span class="tag" style="background:#fff3cd;color:#8a6d1a;">👤 ' + esc(absences[date]) + '</span>' : "";
+    const dayLabel = '<div class="day-label ' + cls + '"><div class="dow">' + DOW[dow] + '</div><div class="date">' + (d.getMonth()+1) + "/" + d.getDate() + '</div></div>';
+    if(name === OFF || name === OUT){
+      const isOut = name === OUT;
+      return '<div class="day-card ' + (isOut ? 'out' : 'off') + '">' + dayLabel
+        + '<div class="dish"><div class="name">' + (isOut ? '🍽 外食' : '不在（献立なし）') + absTag + '</div>'
+        + '<div class="meta">買い物リストからも除外されます</div></div>'
+        + '<div class="btn-col"><button class="swap-btn" onclick="restoreDay(\'' + date + '\')">献立に戻す</button></div></div>';
+    }
     const r = recipeByName(name) || {ing:[]};
     const isFixed = dow === 3 || dow === 5 || dow === 0;
-    const fixedTag = dow === 3 ? '<span class="tag">水曜固定</span>' : (dow === 5 || dow === 0) ? '<span class="tag">定番</span>' : "";
-    return '<div class="day-card' + (isFixed ? ' fixed' : '') + '">'
-      + '<div class="day-label ' + cls + '"><div class="dow">' + DOW[dow] + '</div><div class="date">' + (d.getMonth()+1) + "/" + d.getDate() + '</div></div>'
-      + '<div class="dish"><div class="name">' + esc(name) + fixedTag + '</div>'
+    const fixedTag = dow === 3 ? '<span class="tag">水曜</span>' : (dow === 5 || dow === 0) ? '<span class="tag">定番</span>' : "";
+    return '<div class="day-card' + (isFixed ? ' fixed' : '') + '">' + dayLabel
+      + '<div class="dish"><div class="name">' + esc(name) + fixedTag + absTag + '</div>'
       + '<div class="meta">' + esc(r.ing.map(i => i.n).join("・")) + (r.note ? '／' + esc(r.note) : '') + '</div>'
       + (r.url ? '<a href="' + esc(r.url) + '" target="_blank" rel="noopener">📎 レシピを見る</a>' : '')
       + '</div>'
-      + '<button class="swap-btn" onclick="swapDay(\'' + date + '\')"' + (dow === 3 ? ' disabled' : '') + '>変更</button></div>';
+      + '<div class="btn-col">'
+      + '<button class="swap-btn" onclick="swapDay(\'' + date + '\')">変更</button>'
+      + '<div class="mini-row">'
+      + '<button class="off-btn" onclick="setOff(\'' + date + '\')">不在</button>'
+      + '<button class="off-btn out-btn" onclick="setOut(\'' + date + '\')">外食</button>'
+      + '</div></div></div>';
   }).join("");
   const s = parseD(dates[0]), e = parseD(dates[6]);
   document.getElementById("headerSub").textContent =
@@ -544,10 +612,9 @@ function renderCalendar(){
     const date = fmt(new Date(y, m, day));
     const dow = new Date(y, m, day).getDay();
     if(day > 1 && dow === 0) html += '</tr><tr>';
-    const dish = plans[date];
     const cls = (date === todayStr ? "today " : "") + (win.has(date) ? "inwin" : "");
-    html += '<td class="' + cls + '"><span class="d">' + day + '</span>'
-      + (dish ? '<span class="dot">' + esc(dish) + '</span>' : '') + '</td>';
+    html += '<td class="' + cls + '" onclick="setAbsence(\'' + date + '\')"><span class="d">' + day + '</span>'
+      + (absences[date] ? '<span class="abs">👤' + esc(absences[date]) + '</span>' : '') + '</td>';
   }
   const lastDow = new Date(y, m, daysIn).getDay();
   for(let i=lastDow+1;i<=6;i++) html += '<td></td>';
@@ -558,6 +625,18 @@ function renderCalendar(){
 function moveMonth(diff){
   calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() + diff, 1);
   renderCalendar();
+}
+
+function setAbsence(date){
+  const d = parseD(date);
+  const cur = absences[date] || "";
+  const v = prompt((d.getMonth()+1) + "/" + d.getDate() + " の不在メモ（例：パパ不在）\n空欄で削除", cur);
+  if(v === null) return; // キャンセル
+  if(v.trim() === "") delete absences[date];
+  else absences[date] = v.trim();
+  persist();
+  renderCalendar();
+  renderMenu();
 }
 
 function renderShopping(){
