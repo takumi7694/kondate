@@ -104,6 +104,11 @@
     box-shadow:0 4px 14px rgba(20,80,124,.25); letter-spacing:.08em; font-family:var(--sans);}
   .regen .fr{font-family:var(--serif); font-style:italic; font-weight:500; font-size:12px; display:block; opacity:.75; letter-spacing:.12em; margin-bottom:2px;}
   .regen:active{opacity:.85;}
+  .copy-btn{width:100%; border:1.5px solid var(--azure); background:#fff; color:var(--azure);
+    font-size:13.5px; font-weight:700; padding:13px; border-radius:var(--radius); margin-top:8px;
+    cursor:pointer; letter-spacing:.06em;}
+  .copy-btn:active{background:var(--azure-light);}
+  .copy-btn.done{background:#e7f4ec; border-color:#256a44; color:#256a44;}
   .note{font-size:10.5px; color:var(--sub); text-align:center; margin:10px 0 0; line-height:1.8; letter-spacing:.03em;}
 
   /* ===== 買い物リスト ===== */
@@ -185,11 +190,13 @@
     <div id="menuList"></div>
 
     <button class="regen" onclick="regenerate()"><span class="fr">Régénérer</span>今日から7日分をつくり直す</button>
+    <button class="copy-btn" id="copyBtn1" onclick="copyWeek('copyBtn1')">📋 献立＋買い物リストをコピー</button>
     <p class="note">水＝海鮮丼／金・日＝定番メニューから選択<br>その他の日は「月1メニュー」から重複なしで選びます</p>
   </section>
 
   <section id="tab-shopping" class="tab">
     <div id="shoppingList"></div>
+    <button class="copy-btn" id="copyBtn2" onclick="copyWeek('copyBtn2')">📋 献立＋買い物リストをコピー</button>
     <p class="note">チェックはこの端末に保存されます。献立を作り直すとリセットされます。</p>
   </section>
 
@@ -666,6 +673,71 @@ function renderShopping(){
       }).join("") + '</div>';
   }
   el.innerHTML = html || '<p class="note">献立を生成すると買い物リストが表示されます</p>';
+}
+
+/* ================= 週まとめコピー ================= */
+function buildWeekText(){
+  if(!genStart) return "";
+  const dates = windowDates(genStart);
+  const s = parseD(dates[0]), e = parseD(dates[6]);
+  let text = "【今週のこんだて " + (s.getMonth()+1) + "/" + s.getDate() + "（" + DOW[s.getDay()] + "）〜"
+    + (e.getMonth()+1) + "/" + e.getDate() + "（" + DOW[e.getDay()] + "）】\n";
+  for(const date of dates){
+    const d = parseD(date);
+    const name = plans[date];
+    const label = name === OFF ? "不在（献立なし）" : name === OUT ? "外食" : name;
+    const abs = absences[date] ? "（👤" + absences[date] + "）" : "";
+    text += (d.getMonth()+1) + "/" + d.getDate() + "（" + DOW[d.getDay()] + "）" + label + abs + "\n";
+    const r = recipeByName(name);
+    if(r && r.url) text += "　" + r.url + "\n";
+  }
+  // 買い物リスト（不在・外食の日は自動的に含まれない）
+  const map = {};
+  for(const date of dates){
+    const r = recipeByName(plans[date]);
+    if(!r) continue;
+    for(const i of r.ing){
+      if(!map[i.n]) map[i.n] = {cat: i.cat, dishes: new Set()};
+      map[i.n].dishes.add(r.name);
+    }
+  }
+  text += "\n【買い物リスト】\n";
+  for(const cat of CAT_ORDER){
+    const items = Object.entries(map).filter(([, v]) => v.cat === cat);
+    if(!items.length) continue;
+    text += "■" + cat + "\n";
+    for(const [n, v] of items){
+      text += "・" + n + "（" + [...v.dishes].join("・") + "）\n";
+    }
+  }
+  return text;
+}
+
+function copyWeek(btnId){
+  const text = buildWeekText();
+  if(!text){ alert("献立がまだ生成されていません"); return; }
+  const done = () => {
+    const btn = document.getElementById(btnId);
+    const orig = btn.textContent;
+    btn.textContent = "✅ コピーしました";
+    btn.classList.add("done");
+    setTimeout(() => { btn.textContent = orig; btn.classList.remove("done"); }, 2000);
+  };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+  }else{
+    fallbackCopy(text, done);
+  }
+}
+
+function fallbackCopy(text, done){
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed"; ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  try{ document.execCommand("copy"); done(); }catch(e){ alert("コピーに失敗しました"); }
+  document.body.removeChild(ta);
 }
 
 function toggleCheck(name, on){
