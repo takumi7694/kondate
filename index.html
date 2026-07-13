@@ -191,7 +191,7 @@
 
     <button class="regen" onclick="regenerate()"><span class="fr">Régénérer</span>今日から7日分をつくり直す</button>
     <button class="copy-btn" id="copyBtn1" onclick="copyWeek('copyBtn1')">📋 献立＋買い物リストをコピー</button>
-    <p class="note">水＝海鮮丼／金・日＝定番メニューから選択<br>その他の日は「月1メニュー」から重複なしで選びます</p>
+    <p class="note">木＝海鮮丼／金・日＝定番メニューから選択<br>その他の日は「月1メニュー」から重複なしで選びます</p>
   </section>
 
   <section id="tab-shopping" class="tab">
@@ -287,6 +287,7 @@ const BUILTIN = [
 ];
 
 const FIXED_WED = "海鮮丼";
+const FIXED_DOW = 4; // 海鮮丼の固定曜日（0=日,1=月,...4=木）
 const OFF = "__OFF__";     // 不在（献立なし）を表す特別な値
 const OUT = "__EAT_OUT__"; // 外食を表す特別な値
 const BASE_ROTATION = ["麻婆豆腐","豚キムチ","チキンステーキ"];
@@ -395,6 +396,7 @@ let plans = store.get("plans", {});
 let genStart = store.get("genStart", null);
 let checks = store.get("checks", {});
 let absences = store.get("absences", {}); // {"2026-07-10":"パパ不在"}
+let extras = store.get("extraMeals", {}); // 自由入力メニューの食材 {"2026-07-10":[{n,cat}]}
 let calCursor = new Date(today().getFullYear(), today().getMonth(), 1);
 
 /* ================= 同期レイヤー ================= */
@@ -404,8 +406,8 @@ const syncEnabled = !!(FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.databaseURL);
 function persist(){
   store.set("plans", plans); store.set("genStart", genStart); store.set("checks", checks);
   store.set("customRecipes", custom); store.set("hiddenBuiltins", hidden); store.set("trashRecipes", trash);
-  store.set("absences", absences);
-  if(db) db.set({plans, genStart, checks, custom, hidden, trash, absences, ts: Date.now()});
+  store.set("absences", absences); store.set("extraMeals", extras);
+  if(db) db.set({plans, genStart, checks, custom, hidden, trash, absences, extras, ts: Date.now()});
 }
 
 function updateSyncBadge(state){ // "on" | "off" | "none"
@@ -429,10 +431,10 @@ function initSync(){
       }
       plans = v.plans || {}; genStart = v.genStart || null;
       checks = v.checks || {}; custom = v.custom || []; hidden = v.hidden || []; trash = v.trash || [];
-      absences = v.absences || {};
+      absences = v.absences || {}; extras = v.extras || {};
       store.set("plans", plans); store.set("genStart", genStart); store.set("checks", checks);
       store.set("customRecipes", custom); store.set("hiddenBuiltins", hidden); store.set("trashRecipes", trash);
-      store.set("absences", absences);
+      store.set("absences", absences); store.set("extraMeals", extras);
       if(!genStart){ regenerate(); return; }
       renderAll();
     }, () => updateSyncBadge("off"));
@@ -470,7 +472,7 @@ function generate(startStr){
   let rotIdx = 0;
   for(const date of dates){
     const dow = parseD(date).getDay();
-    if(dow === 3 && recipeByName(FIXED_WED)){ result[date] = FIXED_WED; usedThisWeek.add(FIXED_WED); }
+    if(dow === FIXED_DOW && recipeByName(FIXED_WED)){ result[date] = FIXED_WED; usedThisWeek.add(FIXED_WED); }
     else if((dow === 5 || dow === 0) && rot.length){
       const pick = rotPicks[rotIdx % rotPicks.length]; rotIdx++;
       result[date] = pick; usedThisWeek.add(pick);
@@ -504,6 +506,7 @@ function regenerate(){
   Object.assign(plans, result);
   genStart = startStr;
   checks = {};
+  windowDates(startStr).forEach(d => delete extras[d]);
   persist();
   calCursor = new Date(today().getFullYear(), today().getMonth(), 1);
   renderAll();
@@ -524,8 +527,8 @@ function pickDishFor(date){
     const used = monthlyUsed(ym, new Set(dates));
     pool = recipes.filter(r => r.freq === "monthly" && r.name !== plans[date] && !used.has(r.name) && !usedThisWeek.has(r.name)).map(r => r.name);
     if(!pool.length) pool = recipes.filter(r => r.freq === "monthly" && r.name !== plans[date] && !usedThisWeek.has(r.name)).map(r => r.name);
-    if(dow === 3 && recipeByName(FIXED_WED) && plans[date] !== FIXED_WED && !usedThisWeek.has(FIXED_WED)){
-      pool = pool.concat([FIXED_WED]); // 水曜は海鮮丼も候補に含める
+    if(dow === FIXED_DOW && recipeByName(FIXED_WED) && plans[date] !== FIXED_WED && !usedThisWeek.has(FIXED_WED)){
+      pool = pool.concat([FIXED_WED]); // 固定曜日は海鮮丼も候補に含める
     }
   }
   return pool && pool.length ? shuffle(pool)[0] : null;
@@ -535,18 +538,33 @@ function swapDay(date){
   const pick = pickDishFor(date);
   if(!pick){ alert("入れ替え候補がありません"); return; }
   plans[date] = pick;
+  delete extras[date];
   persist();
   renderAll();
 }
 
 function setOff(date){
   plans[date] = OFF;
+  delete extras[date];
   persist();
   renderAll();
 }
 
 function setOut(date){
   plans[date] = OUT;
+  delete extras[date];
+  persist();
+  renderAll();
+}
+
+function setFree(date){
+  const d = parseD(date);
+  const name = prompt((d.getMonth()+1) + "/" + d.getDate() + " の献立を自由入力\n（登録レシピ以外もOK。例：実家で鍋、そうめん）");
+  if(name === null || !name.trim()) return;
+  const ingRaw = prompt("買い物リストに入れる食材があればカンマ区切りで入力\n（不要なら空欄のままOK）") || "";
+  plans[date] = name.trim();
+  const ing = ingRaw.split(/[,、，]/).map(s => s.trim()).filter(Boolean).map(n => ({n, cat: guessCat(n)}));
+  if(ing.length) extras[date] = ing; else delete extras[date];
   persist();
   renderAll();
 }
@@ -554,13 +572,14 @@ function setOut(date){
 function restoreDay(date){
   const dow = parseD(date).getDay();
   let pick;
-  if(dow === 3 && recipeByName(FIXED_WED)){
-    pick = FIXED_WED; // 水曜に戻すときはまず海鮮丼
+  if(dow === FIXED_DOW && recipeByName(FIXED_WED)){
+    pick = FIXED_WED; // 固定曜日に戻すときはまず海鮮丼
   }else{
     pick = pickDishFor(date);
   }
   if(!pick){ alert("候補がありません。レシピを追加してください。"); return; }
   plans[date] = pick;
+  delete extras[date];
   persist();
   renderAll();
 }
@@ -584,10 +603,14 @@ function renderMenu(){
         + '<div class="meta">買い物リストからも除外されます</div></div>'
         + '<div class="btn-col"><button class="swap-btn" onclick="restoreDay(\'' + date + '\')">献立に戻す</button></div></div>';
     }
-    const r = recipeByName(name) || {ing:[]};
-    const isFixed = dow === 3 || dow === 5 || dow === 0;
-    const fixedTag = dow === 3 ? '<span class="tag">水曜</span>' : (dow === 5 || dow === 0) ? '<span class="tag">定番</span>' : "";
-    return '<div class="day-card' + (isFixed ? ' fixed' : '') + '">' + dayLabel
+    let r = recipeByName(name);
+    const isFree = !r;
+    if(!r) r = {ing: extras[date] || []};
+    const isFixed = dow === FIXED_DOW || dow === 5 || dow === 0;
+    const fixedTag = isFree ? '<span class="tag blue">自由入力</span>'
+      : dow === FIXED_DOW ? '<span class="tag">木曜</span>'
+      : (dow === 5 || dow === 0) ? '<span class="tag">定番</span>' : "";
+    return '<div class="day-card' + (isFixed && !isFree ? ' fixed' : '') + '">' + dayLabel
       + '<div class="dish"><div class="name">' + esc(name) + fixedTag + absTag + '</div>'
       + '<div class="meta">' + esc(r.ing.map(i => i.n).join("・")) + (r.note ? '／' + esc(r.note) : '') + '</div>'
       + (r.url ? '<a href="' + esc(r.url) + '" target="_blank" rel="noopener">📎 レシピを見る</a>' : '')
@@ -597,6 +620,7 @@ function renderMenu(){
       + '<div class="mini-row">'
       + '<button class="off-btn" onclick="setOff(\'' + date + '\')">不在</button>'
       + '<button class="off-btn out-btn" onclick="setOut(\'' + date + '\')">外食</button>'
+      + '<button class="off-btn" style="color:var(--azure-mid);border-color:var(--azure-light);" onclick="setFree(\'' + date + '\')">自由</button>'
       + '</div></div></div>';
   }).join("");
   const s = parseD(dates[0]), e = parseD(dates[6]);
@@ -646,19 +670,28 @@ function setAbsence(date){
   renderMenu();
 }
 
+/* 7日分の食材を集約（登録レシピ＋自由入力の食材） */
+function buildIngMap(dates){
+  const map = {};
+  const add = (i, dishName) => {
+    if(!map[i.n]) map[i.n] = {cat: i.cat, dishes: new Set()};
+    map[i.n].dishes.add(dishName);
+  };
+  for(const date of dates){
+    const name = plans[date];
+    if(!name || name === OFF || name === OUT) continue;
+    const r = recipeByName(name);
+    if(r){ r.ing.forEach(i => add(i, r.name)); }
+    else if(extras[date]){ extras[date].forEach(i => add(i, name)); }
+  }
+  return map;
+}
+
 function renderShopping(){
   const el = document.getElementById("shoppingList");
   if(!genStart){ el.innerHTML = ""; return; }
   const dates = windowDates(genStart);
-  const map = {};
-  for(const date of dates){
-    const r = recipeByName(plans[date]);
-    if(!r) continue;
-    for(const i of r.ing){
-      if(!map[i.n]) map[i.n] = {cat: i.cat, dishes: new Set()};
-      map[i.n].dishes.add(r.name);
-    }
-  }
+  const map = buildIngMap(dates);
   let html = "";
   for(const cat of CAT_ORDER){
     const items = Object.entries(map).filter(([, v]) => v.cat === cat);
@@ -692,15 +725,7 @@ function buildWeekText(){
     if(r && r.url) text += "　" + r.url + "\n";
   }
   // 買い物リスト（不在・外食の日は自動的に含まれない）
-  const map = {};
-  for(const date of dates){
-    const r = recipeByName(plans[date]);
-    if(!r) continue;
-    for(const i of r.ing){
-      if(!map[i.n]) map[i.n] = {cat: i.cat, dishes: new Set()};
-      map[i.n].dishes.add(r.name);
-    }
-  }
+  const map = buildIngMap(dates);
   text += "\n【買い物リスト】\n";
   for(const cat of CAT_ORDER){
     const items = Object.entries(map).filter(([, v]) => v.cat === cat);
